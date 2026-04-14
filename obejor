@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>360 Virtual Tour Viewer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { 
+    background: #000; 
+    overflow: hidden; 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    width: 100vw; 
+    height: 100vh;
+  }
+  #cc { width: 100%; height: 100%; position: absolute; top: 0; left: 0; cursor: grab; }
+  #cc:active { cursor: grabbing; }
+  canvas { display: block; width: 100% !important; height: 100% !important; }
+
+  /* Premium UI Overlay */
+  #ui-container {
+    position: fixed; top: 30px; left: 30px; z-index: 100;
+    background: rgba(10, 10, 10, 0.6); border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 20px 25px; border-radius: 12px; backdrop-filter: blur(15px);
+    color: white; pointer-events: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  #ui-container h1 { font-size: 16px; font-weight: 600; letter-spacing: 1px; margin-bottom: 5px; }
+  #ui-container p { font-size: 11px; color: #aaa; letter-spacing: 0.5px; text-transform: uppercase; }
+
+  /* Interactive Buttons */
+  #controls {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 15px; z-index: 100;
+  }
+  .btn {
+    background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #fff; padding: 12px 24px; border-radius: 50px; cursor: pointer;
+    font-size: 11px; letter-spacing: 0.15em; backdrop-filter: blur(10px);
+    transition: all 0.3s ease; text-transform: uppercase; font-weight: 600;
+  }
+  .btn:hover { background: rgba(255, 255, 255, 0.25); border-color: #fff; }
+
+  /* Loading Screen */
+  #overlay {
+    position: fixed; inset: 0; background: #050505;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 999; transition: opacity 0.8s ease-in-out;
+  }
+  #overlay.hide { opacity: 0; pointer-events: none; }
+  .loader {
+    width: 50px; height: 50px; border: 2px solid rgba(255,255,255,0.1);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 1s cubic-bezier(0.6, 0.2, 0.4, 0.8) infinite; margin-bottom: 25px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #overlay h2 { color: #fff; font-size: 12px; letter-spacing: 0.4em; font-weight: 400; text-transform: uppercase;}
+</style>
+<!-- Import Three.js Core -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- Import OrbitControls for dragging and zooming -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+<div id="overlay">
+  <div class="loader"></div>
+  <h2 id="loadText">Downloading Panorama...</h2>
+</div>
+
+<div id="ui-container">
+  <h1>Virtual Showroom</h1>
+  <p>Interactive 360° Experience</p>
+</div>
+
+<div id="controls">
+  <button class="btn" onclick="toggleAutoRotate()">Auto-Rotate: ON</button>
+</div>
+
+<div id="cc"></div>
+
+<script>
+// 1. Scene Setup
+const cc = document.getElementById('cc');
+const scene = new THREE.Scene();
+
+// 2. Camera Setup
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 0, 0.1); 
+
+// 3. Renderer Setup
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+cc.appendChild(renderer.domElement);
+
+// 4. Controls Setup 
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableZoom = true;
+controls.enablePan = false; 
+controls.enableDamping = true; 
+controls.dampingFactor = 0.05;
+controls.autoRotate = true; 
+controls.autoRotateSpeed = 0.5;
+
+controls.addEventListener('start', function(){
+    controls.autoRotate = false;
+    document.querySelector('.btn').innerText = "Auto-Rotate: OFF";
+});
+
+window.toggleAutoRotate = function() {
+    controls.autoRotate = !controls.autoRotate;
+    document.querySelector('.btn').innerText = controls.autoRotate ? "Auto-Rotate: ON" : "Auto-Rotate: OFF";
+}
+
+// 5. The 360 Sphere
+const geometry = new THREE.SphereGeometry(500, 60, 40);
+geometry.scale(-1, 1, 1);
+
+// 6. Loading Manager 
+const manager = new THREE.LoadingManager();
+manager.onLoad = function ( ) {
+    document.getElementById('overlay').classList.add('hide');
+};
+manager.onProgress = function ( url, itemsLoaded, itemsTotal ) {
+    document.getElementById('loadText').innerText = `Loading Panorama (${Math.round((itemsLoaded / itemsTotal) * 100)}%)...`;
+};
+manager.onError = function(url) {
+    document.getElementById('loadText').innerText = "Error loading image.";
+    document.getElementById('loadText').style.color = "red";
+    document.querySelector('.loader').style.display = "none";
+}
+
+// 7. Load the panoramic image
+const loader = new THREE.TextureLoader(manager);
+loader.crossOrigin = 'Anonymous'; // Crucial for pulling images from postimg.cc
+
+// NEW POSTIMAGES DIRECT LINK INTEGRATED HERE
+const imageUrl = 'https://upload.aiquickdraw.com/ot/images/1776165990613-5znopio406p.png';
+
+loader.load(imageUrl, function (texture) {
+    texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    
+    // We use MeshBasicMaterial so it ignores external lighting and just displays your render perfectly
+    const material = new THREE.MeshBasicMaterial({ map: texture });
+    
+    const sphere = new THREE.Mesh(geometry, material);
+    scene.add(sphere);
+});
+
+// 8. Handle Resizing
+window.addEventListener('resize', onWindowResize, false);
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// 9. Animation Loop
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update(); 
+    renderer.render(scene, camera);
+}
+animate();
+
+</script>
+</body>
+</html>
